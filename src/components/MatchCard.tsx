@@ -1,6 +1,6 @@
 import { Check, Clock3 } from 'lucide-react'
-import { resolveMatchPlayers } from '../lib/bracket'
-import { destinationLabel, matchCode, playerTitle, sourceLabel } from '../lib/presentation'
+import { resolveMatchPlayers, sourceResolved } from '../lib/bracket'
+import { destinationLabel, matchCode, playerTitle, sourceLabel, sourceLocation } from '../lib/presentation'
 import type { Match, Tournament } from '../types'
 
 interface MatchCardProps {
@@ -36,7 +36,7 @@ export function MatchCard({ tournament, match, onOpen, desktop = false, highligh
           <span className={`player-avatar ${!playerId ? 'unknown' : ''}`}>{seed || '?'}</span>
           <span className="player-identity">
             <span className={`player-name ${!playerId ? 'placeholder' : ''}`} title={playerTitle(tournament, match, playerId, index)}>{playerTitle(tournament, match, playerId, index)}</span>
-            <span className="player-origin">{winner ? 'Победитель' : loser ? 'Поражение' : playerId ? sourceLabel(tournament, match.sources[index]) : 'Имя появится после игры'}</span>
+            <span className="player-origin">{winner ? 'Победитель' : loser ? 'Поражение' : playerId ? sourceLabel(tournament, match.sources[index]) : sourceResolved(tournament, match.sources[index]) ? 'Соперника в этой позиции нет' : sourceLocation(tournament, match.sources[index]) || 'Имя появится после игры'}</span>
           </span>
           {winner && <Check size={16} className="winner-check" />}
           <span className="score-chip">{playerScore(index)}</span>

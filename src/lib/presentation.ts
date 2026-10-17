@@ -5,10 +5,23 @@ export function matchCode(tournament: Tournament, match: Match): string {
   return `Игра №${getAllMatches(tournament).findIndex((item) => item.id === match.id) + 1}`
 }
 
-export function sourceLabel(tournament: Tournament, source: MatchSource): string {
+export function matchLocation(tournament: Tournament, match: Match): string {
+  if (match.id === tournament.grandFinal?.id) return 'Финал · общий финал'
+  if (match.id === tournament.resetFinal?.id) return 'Финал · решающий матч'
+  if (match.isThirdPlace) return 'Матч за третье место'
+  const lower = tournament.lowerRounds?.some((round) => round.some((item) => item.id === match.id))
+  return `${lower ? 'Нижняя сетка' : tournament.format === 'double' ? 'Верхняя сетка' : 'Сетка'} · раунд ${match.round + 1}`
+}
+
+export function sourceLocation(tournament: Tournament, source: MatchSource): string {
+  const match = source.kind === 'match' ? getMatch(tournament, source.matchId) : undefined
+  return match ? matchLocation(tournament, match) : ''
+}
+
+export function sourceLabel(tournament: Tournament, source: MatchSource, includeLocation = true): string {
   if (source.kind === 'participant') return source.participantId ? 'Стартовый состав' : 'Без соперника · проход дальше'
   const match = getMatch(tournament, source.matchId)
-  return `${source.outcome === 'winner' ? 'Победитель' : 'Проигравший'} ${match ? matchCode(tournament, match).replace('Игра', 'игры') : 'предыдущей игры'}`
+  return `${source.outcome === 'winner' ? 'Победитель' : 'Проигравший'} ${match ? matchCode(tournament, match).replace('Игра', 'игры') : 'предыдущей игры'}${match && includeLocation ? ` · ${matchLocation(tournament, match)}` : ''}`
 }
 
 export function destinationLabel(tournament: Tournament, match: Match, outcome: 'winner' | 'loser'): string {
@@ -37,5 +50,5 @@ export function destinationLabel(tournament: Tournament, match: Match, outcome: 
 }
 
 export function playerTitle(tournament: Tournament, match: Match, playerId: string | null, index: number) {
-  return playerId ? participantName(tournament, playerId) : sourceLabel(tournament, match.sources[index])
+  return playerId ? participantName(tournament, playerId) : sourceLabel(tournament, match.sources[index], false)
 }

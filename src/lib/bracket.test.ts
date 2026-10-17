@@ -28,7 +28,7 @@ function finishTournament(input: Tournament): Tournament {
 }
 
 describe('олимпийская сетка', () => {
-  for (const count of [3, 5, 6, 7, 8, 13, 16]) {
+  for (const count of [3, 5, 6, 7, 8, 13, 15, 16, 20]) {
     it(`строит и завершает турнир на ${count} участников`, () => {
       const tournament = createTournament('Тест', participants(count), true, `test-${count}`)
       const bracketSize = 2 ** Math.ceil(Math.log2(count))

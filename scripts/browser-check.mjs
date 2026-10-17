@@ -137,8 +137,49 @@ try {
   await finalPage.goto(finalLink)
   assert.ok(await finalPage.getByRole('region', { name: 'Итоги турнира' }).isVisible())
   await finalContext.close()
+  // A second isolated tournament checks the odd opening field and every UI transition.
+  const oddContext = await browser.newContext({ viewport: { width: 1440, height: 1000 } })
+  const oddPage = await oddContext.newPage()
+  oddPage.on('pageerror', (error) => errors.push(error.message))
+  await oddPage.goto(base)
+  await oddPage.getByLabel('Название турнира', { exact: false }).fill('Проверка 15 игроков')
+  await oddPage.getByRole('button', { name: 'Вставить список участников', exact: true }).click()
+  await oddPage.getByRole('textbox', { name: 'Список участников, по одному на строку' }).fill(Array.from({ length: 15 }, (_, i) => `Игрок ${i + 1}`).join('\n'))
+  await oddPage.getByRole('button', { name: 'Добавить список', exact: true }).click()
+  await oddPage.getByRole('button', { name: 'Начать турнир', exact: true }).click()
+  const openingBye = oddPage.locator('[data-match-id="s0-m7"]:visible')
+  assert.ok((await openingBye.innerText()).includes('Проход без игры'))
+  assert.ok(!(await openingBye.innerText()).includes('Имя появится после игры'))
+  await openingBye.click()
+  assert.ok((await oddPage.getByRole('dialog').innerText()).includes('поражение никому не засчитывается'))
+  assert.equal(await oddPage.locator('.score-button').count(), 0)
+  await oddPage.getByRole('button', { name: 'Закрыть', exact: true }).click()
+  let oddPlayed = 0
+  while (!await oddPage.getByRole('region', { name: 'Итоги турнира' }).count() && oddPlayed < 30) {
+    let played = false
+    for (const branch of ['Верхняя', 'Нижняя', 'Финал']) {
+      await oddPage.getByRole('tab', { name: new RegExp(branch) }).first().click()
+      const card = oddPage.locator('.match-card:visible').filter({ has: oddPage.locator('.match-badge.playable') }).first()
+      if (!await card.count()) continue
+      await card.click()
+      await oddPage.getByRole('button', { name: '1–0 Первый', exact: true }).click()
+      oddPlayed++
+      played = true
+      break
+    }
+    assert.ok(played, '15 players: next game must be playable')
+  }
+  assert.equal(oddPlayed, 28, '15 players: 28 actual games without reset')
+  assert.ok(await oddPage.getByRole('region', { name: 'Итоги турнира' }).isVisible())
+  assert.ok((await oddPage.locator('.tournament-stats').innerText()).includes('28'))
+  const podium = await oddPage.getByRole('region', { name: 'Итоги турнира' }).innerText()
+  assert.ok(podium.includes('2-е:') && podium.includes('3-е:'))
+  await oddPage.reload()
+  assert.equal(await oddPage.getByRole('region', { name: 'Итоги турнира' }).innerText(), podium)
+  await oddPage.screenshot({ path: '.qa/champion-15-desktop.png', animations: 'disabled' })
+  await oddContext.close()
   assert.deepEqual(errors, [])
-  console.log('PASS: 7 viewport widths × 2 themes, full 20-player tournament, draw, lower bracket, correction, reload, highlighting, QR, isolated shared view and restore, reset final and champion snapshot. Screenshots: .qa/')
+  console.log('PASS: 7 viewport widths × 2 themes, full 15- and 20-player tournaments, BYE explanation, podium and actual game counts, draw, lower bracket, correction, reload, highlighting, QR, isolated shared view and restore, reset final and champion snapshot. Screenshots: .qa/')
 } finally {
   await browser.close()
 }

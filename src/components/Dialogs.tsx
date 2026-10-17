@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { Check, Copy, Link2, RotateCcw, X } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
-import { participantName, resolveMatchPlayers, scoreLabel } from '../lib/bracket'
-import { destinationLabel, matchCode, playerTitle, sourceLabel } from '../lib/presentation'
+import { getMatch, participantName, resolveMatchPlayers, scoreLabel, sourceResolved } from '../lib/bracket'
+import { destinationLabel, matchCode, matchLocation, playerTitle, sourceLabel } from '../lib/presentation'
 import type { Match, Score, Tournament } from '../types'
 
 function useDialogFocus(onClose: () => void) {
@@ -46,6 +46,12 @@ interface ResultSheetProps {
 export function ResultSheet({ tournament, match, onClose, onSubmit, readOnly = false }: ResultSheetProps) {
   const players = resolveMatchPlayers(tournament, match)
   const editable = !readOnly && players.every(Boolean) && match.result?.score !== 'bye'
+  const hasEmptySlot = players.some((id, index) => !id && sourceResolved(tournament, match.sources[index]))
+  const pendingMatches = match.sources.flatMap((source) => {
+    if (source.kind !== 'match' || sourceResolved(tournament, source)) return []
+    const pending = getMatch(tournament, source.matchId)
+    return pending ? [pending] : []
+  })
   const [drawMode, setDrawMode] = useState(match.result?.score === 'draw')
   const dialogRef = useDialogFocus(onClose)
 
@@ -55,7 +61,7 @@ export function ResultSheet({ tournament, match, onClose, onSubmit, readOnly = f
         <div className="sheet-handle" />
         <div className="flex items-start justify-between gap-4">
           <div>
-            <div className="eyebrow mb-1">{matchCode(tournament, match)} · {match.isThirdPlace ? 'За третье место' : match.id === tournament.grandFinal?.id ? 'Общий финал' : match.id === tournament.resetFinal?.id ? 'Решающий матч' : 'Карточка матча'}</div>
+            <div className="eyebrow mb-1">{matchCode(tournament, match)} · {matchLocation(tournament, match)}</div>
             <h2 id="result-title" className="text-2xl font-black tracking-tight text-ink dark:text-white">{editable ? 'Кто победил?' : 'Участники и переходы'}</h2>
           </div>
           <button className="icon-button btn-ghost shrink-0" type="button" onClick={onClose} aria-label="Закрыть"><X size={22} /></button>
@@ -75,13 +81,20 @@ export function ResultSheet({ tournament, match, onClose, onSubmit, readOnly = f
           </div>
         </div>
 
+        {pendingMatches.length > 0 && <div className="mt-3 rounded-xl bg-soft px-4 py-3 text-sm text-muted dark:bg-white/[0.04] dark:text-stone-300">
+          <p>Чтобы определить участников, нужны результаты:</p>
+          <ul className="mt-2 list-disc space-y-1 pl-5">{pendingMatches.map((pending) => <li key={pending.id}><strong>{matchCode(tournament, pending)}</strong> — {matchLocation(tournament, pending)}.</li>)}</ul>
+          {!readOnly && <p className="mt-2">Откройте указанный раздел и раунд. Сыграйте доступные матчи и внесите счёт — участники появятся здесь автоматически.</p>}
+        </div>}
+
         {match.result && (
           <div className="mt-3 rounded-xl bg-soft px-4 py-3 text-sm text-muted dark:bg-white/[0.04] dark:text-stone-300">
             Результат: <strong className="text-ink dark:text-white">{scoreLabel(match.result)}</strong>. Победитель: {participantName(tournament, match.result.winnerId)}.{editable && ' Выберите новый счёт, чтобы исправить.'}
           </div>
         )}
 
-        <div className="route-explanation"><span>Победитель <strong>{destinationLabel(tournament, match, 'winner')}</strong></span><span>Проигравший <strong>{destinationLabel(tournament, match, 'loser')}</strong></span></div>
+        {hasEmptySlot && <p className="mt-3 text-sm leading-6 text-muted dark:text-stone-300">Для этой позиции в сетке нет соперника. При нечётном числе игроков в раунде один проходит дальше автоматически (BYE). Это не сыгранный матч: поражение никому не засчитывается. Чётное число участников в начале не гарантирует пары в следующих раундах.</p>}
+        <div className="route-explanation"><span>Победитель <strong>{destinationLabel(tournament, match, 'winner')}</strong></span><span>Проигравший <strong>{hasEmptySlot ? 'Отсутствует — игры нет' : destinationLabel(tournament, match, 'loser')}</strong></span></div>
         {editable && <div className="mt-5 grid grid-cols-3 gap-2" aria-label="Выберите счёт">
           <button className="score-button" type="button" onClick={() => onSubmit('1-0')}>
             <span className="score-value">1–0</span><span>Первый</span>

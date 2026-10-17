@@ -3,6 +3,7 @@ import { createDoubleTournament, getAllMatches, getMatch, getPlacements, needsFi
 import { decodeTournament, encodeTournament } from './share'
 import { loadState, saveState } from './storage'
 import type { Tournament } from '../types'
+import { matchCode } from './presentation'
 
 const players = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `p${i}`, name: `Игрок ${i + 1}` }))
 
@@ -34,11 +35,19 @@ function play(tournament: Tournament, seed = 0, forceReset = false) {
   expect(champion).toBeTruthy()
   expect(games).toBe(2 * next.participants.length - 2 + Number(forceReset))
   for (const [id, count] of losses) expect(count).toBe(id === champion ? Number(forceReset) : 2)
+  const places = getPlacements(next)
+  const final = needsFinalReset(next) ? next.resetFinal! : next.grandFinal!
+  expect(places.runnerUp).toBe(resolveMatchPlayers(next, final).find((id) => id !== champion))
+  if (next.participants.length > 2) {
+    const lowerFinal = next.lowerRounds!.at(-1)![0]
+    expect(places.third).toBe(resolveMatchPlayers(next, lowerFinal).find((id) => id !== lowerFinal.result!.winnerId))
+    expect(new Set(Object.values(places)).size).toBe(3)
+  }
   return next
 }
 
 describe('Два поражения', () => {
-  for (const n of [2, 3, 4, 5, 6, 7, 8, 13, 16, 20, 21, 32]) {
+  for (const n of [2, 3, 4, 5, 6, 7, 8, 13, 15, 16, 20, 21, 32]) {
     for (const reset of [false, true]) {
       it(`${n} участников, ${reset ? 'с решающим матчем' : 'без решающего матча'}`, () => {
         const initial = createDoubleTournament('Кубок', players(n))
@@ -47,6 +56,24 @@ describe('Два поражения', () => {
       })
     }
   }
+
+  it('игра №18 при 20 игроках: пятый победитель второго раунда проходит без игры', () => {
+    let tournament = createDoubleTournament('20 игроков', players(20))
+    const byeId = 's2-m2'
+    expect(matchCode(tournament, getMatch(tournament, byeId)!)).toBe('Игра №18')
+    expect(getMatch(tournament, byeId)!.result).toBeUndefined()
+    for (const round of tournament.rounds.slice(0, 2)) {
+      for (const match of round) tournament = setMatchResult(tournament, match.id, '1-0')
+    }
+    const round = tournament.rounds[2]
+    expect(round.flatMap((m) => resolveMatchPlayers(tournament, m)).filter(Boolean)).toHaveLength(5)
+    expect(resolveMatchPlayers(tournament, getMatch(tournament, byeId)!)).toEqual(['p16', null])
+    expect(getMatch(tournament, byeId)!.result).toEqual({ score: 'bye', winnerId: 'p16' })
+    expect(tournament.lowerRounds!.flat().some((m) => m.sources.some((s) => s.kind === 'match' && s.matchId === byeId && s.outcome === 'loser'))).toBe(false)
+    expect(getMatch(tournament, 's4-m0')!.result).toBeUndefined()
+    tournament = setMatchResult(tournament, 's1-m4', '0-1')
+    expect(getMatch(tournament, byeId)!.result).toEqual({ score: 'bye', winnerId: 'p18' })
+  })
 
   it('20 игроков играют 10 матчей, десять победителей и десять проигравших расходятся', () => {
     let tournament = createDoubleTournament('20 игроков', players(20))
